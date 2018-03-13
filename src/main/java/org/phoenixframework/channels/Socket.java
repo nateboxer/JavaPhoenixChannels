@@ -302,6 +302,9 @@ public class Socket {
      * @param reconnectOnFailure reconnect value
      */
     public void reconectOnFailure(final boolean reconnectOnFailure) {
+        if (this.reconnectOnFailure != reconnectOnFailure && reconnectOnFailure && !isConnected()) {
+            startHeartbeatTimer();
+        }
         this.reconnectOnFailure = reconnectOnFailure;
     }
 
@@ -361,12 +364,7 @@ public class Socket {
     private void cancelHeartbeatTimer() {
         if (Socket.this.heartbeatTimerTask != null) {
             Socket.this.heartbeatTimerTask.cancel();
-        }
-    }
-
-    private void cancelReconnectTimer() {
-        if (Socket.this.reconnectTimerTask != null) {
-            Socket.this.reconnectTimerTask.cancel();
+            Socket.this.heartbeatTimerTask = null;
         }
     }
 
@@ -379,6 +377,13 @@ public class Socket {
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Failed to send payload {0}", body);
             }
+        }
+    }
+
+    private void cancelReconnectTimer() {
+        if (Socket.this.reconnectTimerTask != null) {
+            Socket.this.reconnectTimerTask.cancel();
+            Socket.this.reconnectTimerTask = null;
         }
     }
 
