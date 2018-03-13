@@ -10,7 +10,7 @@ if (project.hasProperty('signing.keyId')) {
     apply plugin: 'signing'
 }
 
-def currentversion = '0.2.12'
+def currentversion = '0.2.14'
 group = 'com.kayako'
 version = currentversion
 
