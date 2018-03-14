@@ -303,7 +303,7 @@ public class Socket {
      */
     public void reconectOnFailure(final boolean reconnectOnFailure) {
         if (this.reconnectOnFailure != reconnectOnFailure && reconnectOnFailure && !isConnected()) {
-            startHeartbeatTimer();
+            scheduleReconnectTimer();
         }
         this.reconnectOnFailure = reconnectOnFailure;
     }
