@@ -96,8 +96,9 @@ public class Socket {
             LOG.log(Level.FINE, "WebSocket onOpen: {0}", webSocket);
             Socket.this.webSocket = webSocket;
             cancelReconnectTimer();
-
             startHeartbeatTimer();
+
+            reconnectIntervalMultiplier = 1; // reset reconnection timer only if it was successful in making a connection
 
             for (final ISocketOpenCallback callback : socketOpenCallbacks) {
                 callback.onOpen();
@@ -111,8 +112,9 @@ public class Socket {
     private static final Logger LOG = Logger.getLogger(Socket.class.getName());
 
     public static final int RECONNECT_INTERVAL_MS = 5000;
-
     private static final int DEFAULT_HEARTBEAT_INTERVAL = 7000;
+
+    private int reconnectIntervalMultiplier = 1;
 
     private final List<Channel> channels = new ArrayList<>();
 
@@ -309,6 +311,7 @@ public class Socket {
     }
 
     /**
+     * x`
      * Removes the specified channel if it is known to the socket
      *
      * @param channel The channel to be removed
@@ -395,6 +398,11 @@ public class Socket {
         cancelReconnectTimer();
         cancelHeartbeatTimer();
 
+        int reconnectInterval = 300;
+        if (reconnectIntervalMultiplier < 60) { // 60 * 5sec = 300 sec = 5 min
+            reconnectInterval = reconnectIntervalMultiplier++ * RECONNECT_INTERVAL_MS;
+        }
+
         Socket.this.reconnectTimerTask = new TimerTask() {
             @Override
             public void run() {
@@ -406,7 +414,7 @@ public class Socket {
                 }
             }
         };
-        timer.schedule(Socket.this.reconnectTimerTask, RECONNECT_INTERVAL_MS);
+        timer.schedule(Socket.this.reconnectTimerTask, reconnectInterval);
     }
 
     private void startHeartbeatTimer() {
