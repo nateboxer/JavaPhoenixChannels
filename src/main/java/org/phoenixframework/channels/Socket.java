@@ -19,11 +19,11 @@ public class Socket {
     public class PhoenixWSListener extends WebSocketListener {
 
         @Override
-        public synchronized void onClosing(WebSocket webSocket, int code, String reason) {
+        public void onClosing(WebSocket webSocket, int code, String reason) {
         }
 
         @Override
-        public synchronized void onClosed(WebSocket webSocket, int code, String reason) {
+        public void onClosed(WebSocket webSocket, int code, String reason) {
             try {
                 LOG.log(Level.FINE, "WebSocket onClose {0}/{1}", new Object[]{code, reason});
                 cancelReconnectTimer();
@@ -39,7 +39,7 @@ public class Socket {
         }
 
         @Override
-        public synchronized void onFailure(WebSocket webSocket, Throwable e, Response response) {
+        public void onFailure(WebSocket webSocket, Throwable e, Response response) {
             LOG.log(Level.WARNING, "WebSocket connection error", e);
             try {
                 //TODO if there are multiple errorCallbacks do we really want to trigger
@@ -72,17 +72,16 @@ public class Socket {
         }
 
         @Override
-        public synchronized void onMessage(WebSocket webSocket, String text) {
+        public void onMessage(WebSocket webSocket, String text) {
             try {
                 LOG.log(Level.FINE, "Envelope received: {0}", text);
                 final Envelope envelope = objectMapper.readValue(text, Envelope.class);
-                synchronized (channelsLock) {
-                    for (final Channel channel : channels) {
-                        if (channel.isMember(envelope.getTopic())) {
-                            channel.trigger(envelope.getEvent(), envelope);
-                        }
+                for (final Channel channel : channels) {
+                    if (channel.isMember(envelope.getTopic())) {
+                        channel.trigger(envelope.getEvent(), envelope);
                     }
                 }
+
 
                 for (final IMessageCallback callback : messageCallbacks) {
                     callback.onMessage(envelope);
@@ -95,7 +94,7 @@ public class Socket {
         }
 
         @Override
-        public synchronized void onOpen(final WebSocket webSocket, final Response response) {
+        public void onOpen(final WebSocket webSocket, final Response response) {
             LOG.log(Level.FINE, "WebSocket onOpen: {0}", webSocket);
             Socket.this.webSocket = webSocket;
             cancelReconnectTimer();
@@ -118,7 +117,6 @@ public class Socket {
     private int reconnectIntervalMultiplier = 1;
 
     private CopyOnWriteArrayList<Channel> channels = new CopyOnWriteArrayList<>();
-    private final Object channelsLock = new Object();
 
     private String endpointUri = null;
 
@@ -184,17 +182,16 @@ public class Socket {
      * @param payload The message payload
      * @return A Channel instance to be used for sending and receiving events for the topic
      */
-    public synchronized Channel chan(final String topic, final JsonNode payload) {
+    public Channel chan(final String topic, final JsonNode payload) {
         LOG.log(Level.FINE, "chan: {0}, {1}", new Object[]{topic, payload});
         Channel channel;
-        synchronized (channelsLock) {
-            channel = new Channel(topic, payload, Socket.this);
-            channels.add(channel);
-        }
+        channel = new Channel(topic, payload, Socket.this);
+        channels.add(channel);
+
         return channel;
     }
 
-    public synchronized void connect() throws IOException {
+    public void connect() throws IOException {
         LOG.log(Level.FINE, "connect");
         disconnect();
         // No support for ws:// or ws:// in okhttp. See https://github.com/square/okhttp/issues/1652
@@ -204,7 +201,7 @@ public class Socket {
         webSocket = httpClient.newWebSocket(request, wsListener);
     }
 
-    public synchronized void disconnect() throws IOException {
+    public void disconnect() throws IOException {
         LOG.log(Level.FINE, "disconnect");
         if (webSocket != null) {
             webSocket.close(1001 /*CLOSE_GOING_AWAY*/, "Disconnected by client");
@@ -216,7 +213,7 @@ public class Socket {
     /**
      * @return true if the socket connection is connected
      */
-    public synchronized boolean isConnected() {
+    public boolean isConnected() {
         return webSocket != null;
     }
 
@@ -320,15 +317,11 @@ public class Socket {
      * @param channel The channel to be removed
      */
     public void remove(final Channel channel) {
-        synchronized (channelsLock) {
-            channels.remove(channel);
-        }
+        channels.remove(channel);
     }
 
     public void removeAllChannels() {
-        synchronized (channelsLock) {
-            channels.clear();
-        }
+        channels.clear();
     }
 
     /**
@@ -344,14 +337,12 @@ public class Socket {
 
     @Override
     public String toString() {
-        synchronized (channelsLock) {
-            return "PhoenixSocket{" +
-                    "endpointUri='" + endpointUri + '\'' +
-                    ", channels=" + channels +
-                    ", refNo=" + refNo +
-                    ", webSocket=" + webSocket +
-                    '}';
-        }
+        return "PhoenixSocket{" +
+                "endpointUri='" + endpointUri + '\'' +
+                ", channels=" + channels +
+                ", refNo=" + refNo +
+                ", webSocket=" + webSocket +
+                '}';
     }
 
     synchronized String makeRef() {
@@ -439,10 +430,8 @@ public class Socket {
     }
 
     private void triggerChannelError() {
-        synchronized (channelsLock) {
-            for (final Channel channel : channels) {
-                channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
-            }
+        for (final Channel channel : channels) {
+            channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
         }
     }
 
