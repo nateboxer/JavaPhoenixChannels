@@ -8,6 +8,7 @@ import okhttp3.*;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -116,7 +117,7 @@ public class Socket {
 
     private int reconnectIntervalMultiplier = 1;
 
-    private List<Channel> channels = new ArrayList<>();
+    private CopyOnWriteArrayList<Channel> channels = new CopyOnWriteArrayList<>();
     private final Object channelsLock = new Object();
 
     private String endpointUri = null;
@@ -320,12 +321,7 @@ public class Socket {
      */
     public void remove(final Channel channel) {
         synchronized (channelsLock) {
-            for (final Iterator chanIter = channels.iterator(); chanIter.hasNext(); ) {
-                if (chanIter.next() == channel) {
-                    chanIter.remove();
-                    break;
-                }
-            }
+            channels.remove(channel);
         }
     }
 
