@@ -75,9 +75,11 @@ public class Socket {
             try {
                 LOG.log(Level.FINE, "Envelope received: {0}", text);
                 final Envelope envelope = objectMapper.readValue(text, Envelope.class);
-                for (final Channel channel : channels) {
-                    if (channel.isMember(envelope.getTopic())) {
-                        channel.trigger(envelope.getEvent(), envelope);
+                synchronized (channels) {
+                    for (final Channel channel : channels) {
+                        if (channel.isMember(envelope.getTopic())) {
+                            channel.trigger(envelope.getEvent(), envelope);
+                        }
                     }
                 }
 
@@ -182,8 +184,11 @@ public class Socket {
      */
     public synchronized Channel chan(final String topic, final JsonNode payload) {
         LOG.log(Level.FINE, "chan: {0}, {1}", new Object[]{topic, payload});
-        final Channel channel = new Channel(topic, payload, Socket.this);
-        channels.add(channel);
+        Channel channel;
+        synchronized (channels) {
+            channel = new Channel(topic, payload, Socket.this);
+            channels.add(channel);
+        }
         return channel;
     }
 
@@ -252,7 +257,7 @@ public class Socket {
      * @param callback The callback to receive OPEN events
      * @return This Socket instance
      */
-    public synchronized Socket onOpen(final ISocketOpenCallback callback) {
+    public Socket onOpen(final ISocketOpenCallback callback) {
         cancelReconnectTimer();
         this.socketOpenCallbacks.add(callback);
         return this;
@@ -265,7 +270,7 @@ public class Socket {
      * @return This socket instance
      * @throws IOException Thrown if the message cannot be sent
      */
-    public synchronized Socket push(final Envelope envelope) throws IOException {
+    public Socket push(final Envelope envelope) throws IOException {
         try {
 
             LOG.log(Level.FINE, "Pushing envelope: {0}", envelope);
@@ -299,7 +304,7 @@ public class Socket {
      *
      * @param reconnectOnFailure reconnect value
      */
-    public synchronized void reconectOnFailure(final boolean reconnectOnFailure) {
+    public void reconectOnFailure(final boolean reconnectOnFailure) {
         if (this.reconnectOnFailure != reconnectOnFailure && reconnectOnFailure && !isConnected()) {
             scheduleReconnectTimer();
         }
@@ -312,17 +317,21 @@ public class Socket {
      *
      * @param channel The channel to be removed
      */
-    public synchronized void remove(final Channel channel) {
-        for (final Iterator chanIter = channels.iterator(); chanIter.hasNext(); ) {
-            if (chanIter.next() == channel) {
-                chanIter.remove();
-                break;
+    public void remove(final Channel channel) {
+        synchronized (channels) {
+            for (final Iterator chanIter = channels.iterator(); chanIter.hasNext(); ) {
+                if (chanIter.next() == channel) {
+                    chanIter.remove();
+                    break;
+                }
             }
         }
     }
 
-    public synchronized void removeAllChannels() {
-        channels.clear();
+    public void removeAllChannels() {
+        synchronized (channels) {
+            channels.clear();
+        }
     }
 
     /**
@@ -332,19 +341,20 @@ public class Socket {
      *
      * @param listener callback to track caught exceptions
      */
-    public synchronized void setOnSocketThrowExceptionListener(OnSocketThrowExceptionListener listener) {
+    public void setOnSocketThrowExceptionListener(OnSocketThrowExceptionListener listener) {
         onSocketThrowExceptionListener = listener;
     }
 
     @Override
-    public synchronized String toString() {
-        return "PhoenixSocket{" +
-                "endpointUri='" + endpointUri + '\'' +
-                ", channels=" + channels +
-                ", refNo=" + refNo +
-                ", webSocket=" + webSocket +
-                '}';
-
+    public String toString() {
+        synchronized (channels) {
+            return "PhoenixSocket{" +
+                    "endpointUri='" + endpointUri + '\'' +
+                    ", channels=" + channels +
+                    ", refNo=" + refNo +
+                    ", webSocket=" + webSocket +
+                    '}';
+        }
     }
 
     synchronized String makeRef() {
@@ -431,9 +441,11 @@ public class Socket {
                 Socket.this.heartbeatInterval);
     }
 
-    private synchronized void triggerChannelError() {
-        for (final Channel channel : channels) {
-            channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
+    private void triggerChannelError() {
+        synchronized (channels) {
+            for (final Channel channel : channels) {
+                channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
+            }
         }
     }
 
