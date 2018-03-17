@@ -117,7 +117,7 @@ public class Socket {
 
     private int reconnectIntervalMultiplier = 1;
 
-    private ArrayList<Channel> channels = new ArrayList<>();
+    private List<Channel> channels = new CopyOnWriteArrayList<>();
     private final Object channelsLock = new Object();
 
     private String endpointUri = null;
@@ -321,10 +321,7 @@ public class Socket {
      */
     public void remove(final Channel channel) {
         synchronized (channelsLock) {
-            ArrayList<Channel> newList = new ArrayList();
-            Collections.copy(channels, newList);
-            newList.remove(channel);
-            channels = newList;
+            channels.remove(channel);
         }
     }
 
