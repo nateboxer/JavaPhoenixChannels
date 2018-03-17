@@ -76,12 +76,13 @@ public class Socket {
             try {
                 LOG.log(Level.FINE, "Envelope received: {0}", text);
                 final Envelope envelope = objectMapper.readValue(text, Envelope.class);
-                for (final Channel channel : channels) {
-                    if (channel.isMember(envelope.getTopic())) {
-                        channel.trigger(envelope.getEvent(), envelope);
+                synchronized (channelsLock) {
+                    for (final Channel channel : channels) {
+                        if (channel.isMember(envelope.getTopic())) {
+                            channel.trigger(envelope.getEvent(), envelope);
+                        }
                     }
                 }
-
 
                 for (final IMessageCallback callback : messageCallbacks) {
                     callback.onMessage(envelope);
@@ -116,7 +117,8 @@ public class Socket {
 
     private int reconnectIntervalMultiplier = 1;
 
-    private CopyOnWriteArrayList<Channel> channels = new CopyOnWriteArrayList<>();
+    private ArrayList<Channel> channels = new ArrayList<>();
+    private final Object channelsLock = new Object();
 
     private String endpointUri = null;
 
@@ -185,9 +187,10 @@ public class Socket {
     public Channel chan(final String topic, final JsonNode payload) {
         LOG.log(Level.FINE, "chan: {0}, {1}", new Object[]{topic, payload});
         Channel channel;
-        channel = new Channel(topic, payload, Socket.this);
-        channels.add(channel);
-
+        synchronized (channelsLock) {
+            channel = new Channel(topic, payload, Socket.this);
+            channels.add(channel);
+        }
         return channel;
     }
 
@@ -317,11 +320,18 @@ public class Socket {
      * @param channel The channel to be removed
      */
     public void remove(final Channel channel) {
-        channels.remove(channel);
+        synchronized (channelsLock) {
+            ArrayList<Channel> newList = new ArrayList();
+            Collections.copy(channels, newList);
+            newList.remove(channel);
+            channels = newList;
+        }
     }
 
     public void removeAllChannels() {
-        channels.clear();
+        synchronized (channelsLock) {
+            channels.clear();
+        }
     }
 
     /**
@@ -337,12 +347,14 @@ public class Socket {
 
     @Override
     public String toString() {
-        return "PhoenixSocket{" +
-                "endpointUri='" + endpointUri + '\'' +
-                ", channels=" + channels +
-                ", refNo=" + refNo +
-                ", webSocket=" + webSocket +
-                '}';
+        synchronized (channelsLock) {
+            return "PhoenixSocket{" +
+                    "endpointUri='" + endpointUri + '\'' +
+                    ", channels=" + channels +
+                    ", refNo=" + refNo +
+                    ", webSocket=" + webSocket +
+                    '}';
+        }
     }
 
     synchronized String makeRef() {
@@ -430,8 +442,10 @@ public class Socket {
     }
 
     private void triggerChannelError() {
-        for (final Channel channel : channels) {
-            channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
+        synchronized (channelsLock) {
+            for (final Channel channel : channels) {
+                channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
+            }
         }
     }
 
