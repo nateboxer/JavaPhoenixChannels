@@ -84,6 +84,8 @@ public class Socket {
                 for (final IMessageCallback callback : messageCallbacks) {
                     callback.onMessage(envelope);
                 }
+
+                reconnectIntervalMultiplier = 1; // reset reconnection timer only if it was successful in making a connection and a message received
             } catch (IOException e) {
                 LOG.log(Level.SEVERE, "Failed to read message payload", e);
             }
@@ -95,8 +97,6 @@ public class Socket {
             Socket.this.webSocket = webSocket;
             cancelReconnectTimer();
             startHeartbeatTimer();
-
-            reconnectIntervalMultiplier = 1; // reset reconnection timer only if it was successful in making a connection
 
             for (final ISocketOpenCallback callback : socketOpenCallbacks) {
                 callback.onOpen();
