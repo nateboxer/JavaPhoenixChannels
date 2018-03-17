@@ -75,7 +75,7 @@ public class Socket {
             try {
                 LOG.log(Level.FINE, "Envelope received: {0}", text);
                 final Envelope envelope = objectMapper.readValue(text, Envelope.class);
-                synchronized (channels) {
+                synchronized (channelsLock) {
                     for (final Channel channel : channels) {
                         if (channel.isMember(envelope.getTopic())) {
                             channel.trigger(envelope.getEvent(), envelope);
@@ -116,7 +116,8 @@ public class Socket {
 
     private int reconnectIntervalMultiplier = 1;
 
-    private final List<Channel> channels = new ArrayList<>();
+    private List<Channel> channels = new ArrayList<>();
+    private final Object channelsLock = new Object();
 
     private String endpointUri = null;
 
@@ -185,7 +186,7 @@ public class Socket {
     public synchronized Channel chan(final String topic, final JsonNode payload) {
         LOG.log(Level.FINE, "chan: {0}, {1}", new Object[]{topic, payload});
         Channel channel;
-        synchronized (channels) {
+        synchronized (channelsLock) {
             channel = new Channel(topic, payload, Socket.this);
             channels.add(channel);
         }
@@ -224,7 +225,7 @@ public class Socket {
      * @param callback The callback to receive CLOSE events
      * @return This Socket instance
      */
-    public synchronized Socket onClose(final ISocketCloseCallback callback) {
+    public Socket onClose(final ISocketCloseCallback callback) {
         this.socketCloseCallbacks.add(callback);
         return this;
     }
@@ -235,7 +236,7 @@ public class Socket {
      * @param callback The callback to receive ERROR events
      * @return This Socket instance
      */
-    public synchronized Socket onError(final IErrorCallback callback) {
+    public Socket onError(final IErrorCallback callback) {
         this.errorCallbacks.add(callback);
         return this;
     }
@@ -246,7 +247,7 @@ public class Socket {
      * @param callback The callback to receive MESSAGE events
      * @return This Socket instance
      */
-    public synchronized Socket onMessage(final IMessageCallback callback) {
+    public Socket onMessage(final IMessageCallback callback) {
         this.messageCallbacks.add(callback);
         return this;
     }
@@ -318,7 +319,7 @@ public class Socket {
      * @param channel The channel to be removed
      */
     public void remove(final Channel channel) {
-        synchronized (channels) {
+        synchronized (channelsLock) {
             for (final Iterator chanIter = channels.iterator(); chanIter.hasNext(); ) {
                 if (chanIter.next() == channel) {
                     chanIter.remove();
@@ -329,7 +330,7 @@ public class Socket {
     }
 
     public void removeAllChannels() {
-        synchronized (channels) {
+        synchronized (channelsLock) {
             channels.clear();
         }
     }
@@ -347,7 +348,7 @@ public class Socket {
 
     @Override
     public String toString() {
-        synchronized (channels) {
+        synchronized (channelsLock) {
             return "PhoenixSocket{" +
                     "endpointUri='" + endpointUri + '\'' +
                     ", channels=" + channels +
@@ -442,7 +443,7 @@ public class Socket {
     }
 
     private void triggerChannelError() {
-        synchronized (channels) {
+        synchronized (channelsLock) {
             for (final Channel channel : channels) {
                 channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
             }
