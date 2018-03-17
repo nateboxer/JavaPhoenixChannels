@@ -18,11 +18,11 @@ public class Socket {
     public class PhoenixWSListener extends WebSocketListener {
 
         @Override
-        public void onClosing(WebSocket webSocket, int code, String reason) {
+        public synchronized void onClosing(WebSocket webSocket, int code, String reason) {
         }
 
         @Override
-        public void onClosed(WebSocket webSocket, int code, String reason) {
+        public synchronized void onClosed(WebSocket webSocket, int code, String reason) {
             try {
                 LOG.log(Level.FINE, "WebSocket onClose {0}/{1}", new Object[]{code, reason});
                 cancelReconnectTimer();
@@ -38,7 +38,7 @@ public class Socket {
         }
 
         @Override
-        public void onFailure(WebSocket webSocket, Throwable e, Response response) {
+        public synchronized void onFailure(WebSocket webSocket, Throwable e, Response response) {
             LOG.log(Level.WARNING, "WebSocket connection error", e);
             try {
                 //TODO if there are multiple errorCallbacks do we really want to trigger
@@ -71,15 +71,13 @@ public class Socket {
         }
 
         @Override
-        public void onMessage(WebSocket webSocket, String text) {
+        public synchronized void onMessage(WebSocket webSocket, String text) {
             try {
                 LOG.log(Level.FINE, "Envelope received: {0}", text);
                 final Envelope envelope = objectMapper.readValue(text, Envelope.class);
-                synchronized (channels) {
-                    for (final Channel channel : channels) {
-                        if (channel.isMember(envelope.getTopic())) {
-                            channel.trigger(envelope.getEvent(), envelope);
-                        }
+                for (final Channel channel : channels) {
+                    if (channel.isMember(envelope.getTopic())) {
+                        channel.trigger(envelope.getEvent(), envelope);
                     }
                 }
 
@@ -92,7 +90,7 @@ public class Socket {
         }
 
         @Override
-        public void onOpen(final WebSocket webSocket, final Response response) {
+        public synchronized void onOpen(final WebSocket webSocket, final Response response) {
             LOG.log(Level.FINE, "WebSocket onOpen: {0}", webSocket);
             Socket.this.webSocket = webSocket;
             cancelReconnectTimer();
@@ -182,16 +180,14 @@ public class Socket {
      * @param payload The message payload
      * @return A Channel instance to be used for sending and receiving events for the topic
      */
-    public Channel chan(final String topic, final JsonNode payload) {
+    public synchronized Channel chan(final String topic, final JsonNode payload) {
         LOG.log(Level.FINE, "chan: {0}, {1}", new Object[]{topic, payload});
         final Channel channel = new Channel(topic, payload, Socket.this);
-        synchronized (channels) {
-            channels.add(channel);
-        }
+        channels.add(channel);
         return channel;
     }
 
-    public void connect() throws IOException {
+    public synchronized void connect() throws IOException {
         LOG.log(Level.FINE, "connect");
         disconnect();
         // No support for ws:// or ws:// in okhttp. See https://github.com/square/okhttp/issues/1652
@@ -201,7 +197,7 @@ public class Socket {
         webSocket = httpClient.newWebSocket(request, wsListener);
     }
 
-    public void disconnect() throws IOException {
+    public synchronized void disconnect() throws IOException {
         LOG.log(Level.FINE, "disconnect");
         if (webSocket != null) {
             webSocket.close(1001 /*CLOSE_GOING_AWAY*/, "Disconnected by client");
@@ -213,7 +209,7 @@ public class Socket {
     /**
      * @return true if the socket connection is connected
      */
-    public boolean isConnected() {
+    public synchronized boolean isConnected() {
         return webSocket != null;
     }
 
@@ -223,7 +219,7 @@ public class Socket {
      * @param callback The callback to receive CLOSE events
      * @return This Socket instance
      */
-    public Socket onClose(final ISocketCloseCallback callback) {
+    public synchronized Socket onClose(final ISocketCloseCallback callback) {
         this.socketCloseCallbacks.add(callback);
         return this;
     }
@@ -234,7 +230,7 @@ public class Socket {
      * @param callback The callback to receive ERROR events
      * @return This Socket instance
      */
-    public Socket onError(final IErrorCallback callback) {
+    public synchronized Socket onError(final IErrorCallback callback) {
         this.errorCallbacks.add(callback);
         return this;
     }
@@ -245,7 +241,7 @@ public class Socket {
      * @param callback The callback to receive MESSAGE events
      * @return This Socket instance
      */
-    public Socket onMessage(final IMessageCallback callback) {
+    public synchronized Socket onMessage(final IMessageCallback callback) {
         this.messageCallbacks.add(callback);
         return this;
     }
@@ -256,7 +252,7 @@ public class Socket {
      * @param callback The callback to receive OPEN events
      * @return This Socket instance
      */
-    public Socket onOpen(final ISocketOpenCallback callback) {
+    public synchronized Socket onOpen(final ISocketOpenCallback callback) {
         cancelReconnectTimer();
         this.socketOpenCallbacks.add(callback);
         return this;
@@ -269,7 +265,7 @@ public class Socket {
      * @return This socket instance
      * @throws IOException Thrown if the message cannot be sent
      */
-    public Socket push(final Envelope envelope) throws IOException {
+    public synchronized Socket push(final Envelope envelope) throws IOException {
         try {
 
             LOG.log(Level.FINE, "Pushing envelope: {0}", envelope);
@@ -303,7 +299,7 @@ public class Socket {
      *
      * @param reconnectOnFailure reconnect value
      */
-    public void reconectOnFailure(final boolean reconnectOnFailure) {
+    public synchronized void reconectOnFailure(final boolean reconnectOnFailure) {
         if (this.reconnectOnFailure != reconnectOnFailure && reconnectOnFailure && !isConnected()) {
             scheduleReconnectTimer();
         }
@@ -316,21 +312,17 @@ public class Socket {
      *
      * @param channel The channel to be removed
      */
-    public void remove(final Channel channel) {
-        synchronized (channels) {
-            for (final Iterator chanIter = channels.iterator(); chanIter.hasNext(); ) {
-                if (chanIter.next() == channel) {
-                    chanIter.remove();
-                    break;
-                }
+    public synchronized void remove(final Channel channel) {
+        for (final Iterator chanIter = channels.iterator(); chanIter.hasNext(); ) {
+            if (chanIter.next() == channel) {
+                chanIter.remove();
+                break;
             }
         }
     }
 
-    public void removeAllChannels() {
-        synchronized (channels) {
-            channels.clear();
-        }
+    public synchronized void removeAllChannels() {
+        channels.clear();
     }
 
     /**
@@ -340,20 +332,19 @@ public class Socket {
      *
      * @param listener callback to track caught exceptions
      */
-    public void setOnSocketThrowExceptionListener(OnSocketThrowExceptionListener listener) {
+    public synchronized void setOnSocketThrowExceptionListener(OnSocketThrowExceptionListener listener) {
         onSocketThrowExceptionListener = listener;
     }
 
     @Override
-    public String toString() {
-        synchronized (channels) {
-            return "PhoenixSocket{" +
-                    "endpointUri='" + endpointUri + '\'' +
-                    ", channels=" + channels +
-                    ", refNo=" + refNo +
-                    ", webSocket=" + webSocket +
-                    '}';
-        }
+    public synchronized String toString() {
+        return "PhoenixSocket{" +
+                "endpointUri='" + endpointUri + '\'' +
+                ", channels=" + channels +
+                ", refNo=" + refNo +
+                ", webSocket=" + webSocket +
+                '}';
+
     }
 
     synchronized String makeRef() {
@@ -440,11 +431,9 @@ public class Socket {
                 Socket.this.heartbeatInterval);
     }
 
-    private void triggerChannelError() {
-        synchronized (channels) {
-            for (final Channel channel : channels) {
-                channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
-            }
+    private synchronized void triggerChannelError() {
+        for (final Channel channel : channels) {
+            channel.trigger(ChannelEvent.ERROR.getPhxEvent(), null);
         }
     }
 
