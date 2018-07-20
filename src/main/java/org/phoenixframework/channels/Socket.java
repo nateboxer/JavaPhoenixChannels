@@ -218,7 +218,13 @@ public class Socket {
     public synchronized void disconnect() throws IOException {
         LOG.log(Level.FINE, "disconnect");
         if (webSocket != null) {
-            webSocket.close(1001 /*CLOSE_GOING_AWAY*/, "Disconnected by client");
+            try {
+                Socket.this.webSocket.close(1001 /*CLOSE_GOING_AWAY*/, "Disconnected by client");
+            } catch (Exception ioe) {
+                LOG.log(Level.WARNING, "Client failed to close socket");
+            } finally {
+                Socket.this.webSocket = null;
+            }
         }
         cancelHeartbeatTimer();
         cancelReconnectTimer();
