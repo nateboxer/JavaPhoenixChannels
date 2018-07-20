@@ -4,14 +4,26 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import okhttp3.*;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
 
 public class Socket {
 
@@ -116,7 +128,7 @@ public class Socket {
 
     private int reconnectIntervalMultiplier = 1;
 
-    private List<Channel> channels = new ArrayList<>();
+    private CopyOnWriteArrayList<Channel> channels = new CopyOnWriteArrayList<Channel>();
     private final Object channelsLock = new Object();
 
     private String endpointUri = null;
@@ -320,12 +332,7 @@ public class Socket {
      */
     public void remove(final Channel channel) {
         synchronized (channelsLock) {
-            for (final Iterator chanIter = channels.iterator(); chanIter.hasNext(); ) {
-                if (chanIter.next() == channel) {
-                    chanIter.remove();
-                    break;
-                }
-            }
+            channels.remove(channel);
         }
     }
 
